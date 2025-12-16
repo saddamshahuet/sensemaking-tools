@@ -14,7 +14,10 @@ const QUEUE_NAME = 'sensemaking';
 const prisma = new PrismaClient();
 const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
 
-const processor = new SensemakingProcessor(prisma);
+// Create a separate Redis connection for pub/sub
+const pubsubConnection = new IORedis(REDIS_URL);
+
+const processor = new SensemakingProcessor(prisma, pubsubConnection);
 
 async function processJob(job: Job<ProcessingJobData>) {
   console.log(`[Worker] Processing job ${job.id}: ${job.name}`);
@@ -57,6 +60,7 @@ process.on('SIGTERM', async () => {
   await worker.close();
   await prisma.$disconnect();
   connection.quit();
+  pubsubConnection.quit();
   process.exit(0);
 });
 
@@ -65,5 +69,6 @@ process.on('SIGINT', async () => {
   await worker.close();
   await prisma.$disconnect();
   connection.quit();
+  pubsubConnection.quit();
   process.exit(0);
 });

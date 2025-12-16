@@ -99,3 +99,72 @@ export const jobsApi = {
   get: (id: string) => api.get(`/jobs/${id}`),
   cancel: (id: string) => api.post(`/jobs/${id}/cancel`),
 };
+
+// Export API
+export const exportApi = {
+  downloadPdf: async (reportId: string) => {
+    const response = await api.get(`/export/reports/${reportId}/pdf`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+  downloadJson: async (reportId: string) => {
+    const response = await api.get(`/export/reports/${reportId}/json`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+  downloadHtml: async (reportId: string) => {
+    const response = await api.get(`/export/reports/${reportId}/html?download=true`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+};
+
+// API Keys API
+export const apiKeysApi = {
+  list: () => api.get('/api-keys'),
+  create: (data: { name: string }) => api.post('/api-keys', data),
+  revoke: (id: string) => api.post(`/api-keys/${id}/revoke`),
+  delete: (id: string) => api.delete(`/api-keys/${id}`),
+};
+
+// Collaborators API
+export const collaboratorsApi = {
+  listByProject: (projectId: string) =>
+    api.get(`/collaborators/projects/${projectId}`),
+  invite: (projectId: string, data: { email: string; role: 'VIEWER' | 'EDITOR' | 'ADMIN' }) =>
+    api.post(`/collaborators/projects/${projectId}/invite`, data),
+  getPendingInvitations: () => api.get('/collaborators/invitations'),
+  accept: (id: string) => api.post(`/collaborators/${id}/accept`),
+  decline: (id: string) => api.post(`/collaborators/${id}/decline`),
+  updateRole: (id: string, role: 'VIEWER' | 'EDITOR' | 'ADMIN') =>
+    api.put(`/collaborators/${id}/role`, { role }),
+  remove: (id: string) => api.delete(`/collaborators/${id}`),
+};
+
+// Realtime API (SSE)
+export const realtimeApi = {
+  subscribeToJobProgress: (jobId: string, onMessage: (data: unknown) => void) => {
+    const token = localStorage.getItem('accessToken');
+    const eventSource = new EventSource(
+      `${API_BASE_URL}/realtime/jobs/${jobId}/progress?token=${token}`
+    );
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        onMessage(data);
+      } catch {
+        console.error('Failed to parse SSE message');
+      }
+    };
+    
+    eventSource.onerror = () => {
+      eventSource.close();
+    };
+    
+    return () => eventSource.close();
+  },
+};

@@ -11,6 +11,10 @@ import { ReportsModule } from './reports/reports.module';
 import { UploadModule } from './upload/upload.module';
 import { JobsModule } from './jobs/jobs.module';
 import { CommonModule } from './common/common.module';
+import { ApiKeysModule } from './api-keys/api-keys.module';
+import { CollaboratorsModule } from './collaborators/collaborators.module';
+import { RealtimeModule } from './realtime/realtime.module';
+import { ExportModule } from './export/export.module';
 
 @Module({
   imports: [
@@ -27,6 +31,10 @@ import { CommonModule } from './common/common.module';
     ReportsModule,
     UploadModule,
     JobsModule,
+    ApiKeysModule,
+    CollaboratorsModule,
+    RealtimeModule,
+    ExportModule,
   ],
 })
 export class AppModule {}

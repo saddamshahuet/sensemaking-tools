@@ -14,6 +14,10 @@ apps/
 │   │   ├── reports/       # Report management module
 │   │   ├── upload/        # CSV upload handling
 │   │   ├── jobs/          # Background job management
+│   │   ├── api-keys/      # API key management for external access
+│   │   ├── collaborators/ # Project collaboration features
+│   │   ├── realtime/      # SSE/Redis pub-sub for real-time updates
+│   │   ├── export/        # PDF/JSON/HTML export
 │   │   └── common/        # Shared services (Prisma, repositories)
 │   └── prisma/            # Database schema and migrations
 │
@@ -21,12 +25,14 @@ apps/
 │   ├── src/
 │   │   ├── app/          # App router pages
 │   │   ├── components/   # React components
+│   │   │   ├── ui/       # Base UI components
+│   │   │   └── visualizations/  # D3 visualization components
 │   │   ├── lib/          # Utilities and API client
 │   │   └── hooks/        # React hooks
 │
 └── worker/               # Background Job Processor
     └── src/
-        ├── processors/   # Job processing logic
+        ├── processors/   # Job processing logic (with sensemaking library integration)
         └── utils/        # Utility functions
 
 packages/
@@ -53,9 +59,9 @@ Client Request → Controller → Service → Repository → Database
 
 1. **Frontend** (Next.js) makes API calls to the backend
 2. **API Server** (NestJS) processes requests and manages data
-3. **Worker** processes background jobs (CSV analysis)
+3. **Worker** processes background jobs (CSV analysis with sensemaking library)
 4. **PostgreSQL** stores all application data
-5. **Redis** manages job queues and real-time updates
+5. **Redis** manages job queues and real-time updates via pub/sub
 
 ## Getting Started
 
@@ -133,6 +139,30 @@ npm run dev
 - `GET /api/v1/jobs/:id` - Get job status
 - `GET /api/v1/jobs/:id/progress` - SSE progress stream
 
+### API Keys
+- `GET /api/v1/api-keys` - List API keys
+- `POST /api/v1/api-keys` - Create new API key
+- `POST /api/v1/api-keys/:id/revoke` - Revoke API key
+- `DELETE /api/v1/api-keys/:id` - Delete API key
+
+### Collaborators
+- `GET /api/v1/collaborators/projects/:projectId` - List project collaborators
+- `POST /api/v1/collaborators/projects/:projectId/invite` - Invite collaborator
+- `GET /api/v1/collaborators/invitations` - Get pending invitations
+- `POST /api/v1/collaborators/:id/accept` - Accept invitation
+- `POST /api/v1/collaborators/:id/decline` - Decline invitation
+- `PUT /api/v1/collaborators/:id/role` - Update collaborator role
+- `DELETE /api/v1/collaborators/:id` - Remove collaborator
+
+### Export
+- `GET /api/v1/export/reports/:id/pdf` - Export report as PDF
+- `GET /api/v1/export/reports/:id/json` - Export report as JSON
+- `GET /api/v1/export/reports/:id/html` - Export report as HTML
+
+### Real-time Updates
+- `GET /api/v1/realtime/jobs/:jobId/progress` - SSE stream for job progress
+- `GET /api/v1/realtime/jobs/all` - SSE stream for all job progress
+
 ## Database Schema
 
 The database uses PostgreSQL with Prisma ORM. Key entities:
@@ -146,6 +176,37 @@ The database uses PostgreSQL with Prisma ORM. Key entities:
 - **Comment** - Analyzed comments
 - **Collaborator** - Project sharing
 - **ApiKey** - External API access
+- **AuditLog** - Activity tracking
+
+## Features
+
+### Worker Integration with Sensemaking Library
+The worker now integrates with the core sensemaking library to:
+- Parse CSV files into structured comments
+- Learn topics from comments
+- Categorize comments into topics
+- Generate summaries with citations
+
+### Real-time Updates
+- Redis pub/sub for broadcasting job progress
+- Server-Sent Events (SSE) for frontend consumption
+- Automatic fallback to polling if Redis unavailable
+
+### Collaboration
+- Invite users by email
+- Role-based access (VIEWER, EDITOR, ADMIN)
+- Accept/decline invitations
+- Owner can manage all collaborators
+
+### Export
+- PDF export with PDFKit
+- JSON export for data interchange
+- HTML export for web viewing
+
+### Visualizations
+- Topics Distribution Chart (D3 bar chart)
+- Topics Overview Pie Chart (D3 pie chart)
+- Alignment Chart (D3 scatter plot)
 
 ## Environment Variables
 
@@ -181,6 +242,8 @@ npm test
 - bcrypt password hashing (cost factor 12)
 - Input validation with class-validator
 - CORS configuration
+- API key authentication for external access
+- File upload sanitization
 - Rate limiting (planned)
 - Row-level security in PostgreSQL (planned)
 
