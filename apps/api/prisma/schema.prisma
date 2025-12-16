@@ -1,0 +1,230 @@
+// Prisma schema for Sensemaker application
+// This schema defines the database structure for multi-tenant support,
+// user management, projects, reports, and collaboration features.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User account for authentication and authorization
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  projects      Project[]
+  collaborators Collaborator[]
+  apiKeys       ApiKey[]
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+// Project for organizing related analyses
+model Project {
+  id                String   @id @default(cuid())
+  userId            String   @map("user_id")
+  name              String
+  description       String?
+  additionalContext String?  @map("additional_context")
+  deletedAt         DateTime? @map("deleted_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reports       Report[]
+  csvUploads    CsvUpload[]
+  collaborators Collaborator[]
+  topics        Topic[]
+  comments      Comment[]
+
+  @@index([userId])
+  @@map("projects")
+}
+
+// CSV file upload record
+model CsvUpload {
+  id               String   @id @default(cuid())
+  projectId        String   @map("project_id")
+  filename         String
+  originalFilename String   @map("original_filename")
+  s3Key            String   @map("s3_key")
+  rowCount         Int      @default(0) @map("row_count")
+  fileSize         Int      @default(0) @map("file_size")
+  status           String   @default("PENDING") // PENDING, VALIDATED, INVALID
+  validationError  String?  @map("validation_error")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  // Relations
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  processingJobs  ProcessingJob[]
+
+  @@index([projectId])
+  @@map("csv_uploads")
+}
+
+// Report representing an analyzed CSV with summary
+model Report {
+  id         String   @id @default(cuid())
+  projectId  String   @map("project_id")
+  name       String
+  status     String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  csvFileUrl String?  @map("csv_file_url")
+  outputJson Json?    @map("output_json")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  processingJobs ProcessingJob[]
+  summary        Summary?
+
+  @@index([projectId])
+  @@map("reports")
+}
+
+// Background processing job
+model ProcessingJob {
+  id          String    @id @default(cuid())
+  reportId    String    @map("report_id")
+  csvUploadId String?   @map("csv_upload_id")
+  status      String    @default("QUEUED") // QUEUED, RUNNING, COMPLETED, FAILED, CANCELLED
+  stage       String?   // PARSING_CSV, LEARNING_TOPICS, CATEGORIZING_COMMENTS, GENERATING_SUMMARY, COMPLETE
+  progress    Int       @default(0)
+  error       String?
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  report    Report     @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  csvUpload CsvUpload? @relation(fields: [csvUploadId], references: [id])
+
+  @@index([reportId])
+  @@map("processing_jobs")
+}
+
+// Summary generated from processing
+model Summary {
+  id          String   @id @default(cuid())
+  reportId    String   @unique @map("report_id")
+  summaryData Json     @map("summary_data")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@map("summaries")
+}
+
+// Topic extracted from comments
+model Topic {
+  id          String  @id @default(cuid())
+  projectId   String  @map("project_id")
+  name        String
+  description String?
+  parentId    String? @map("parent_id")
+
+  // Relations
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent    Topic?    @relation("TopicHierarchy", fields: [parentId], references: [id])
+  subtopics Topic[]   @relation("TopicHierarchy")
+  comments  CommentTopic[]
+
+  @@index([projectId])
+  @@index([parentId])
+  @@map("topics")
+}
+
+// Comment from CSV data
+model Comment {
+  id        String  @id @default(cuid())
+  projectId String  @map("project_id")
+  text      String
+  voteInfo  Json?   @map("vote_info")
+  metadata  Json?
+
+  // Relations
+  project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  topics  CommentTopic[]
+
+  @@index([projectId])
+  @@map("comments")
+}
+
+// Many-to-many relation between comments and topics
+model CommentTopic {
+  commentId String @map("comment_id")
+  topicId   String @map("topic_id")
+
+  // Relations
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  topic   Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([commentId, topicId])
+  @@map("comment_topics")
+}
+
+// Project collaborator
+model Collaborator {
+  id         String    @id @default(cuid())
+  projectId  String    @map("project_id")
+  userId     String    @map("user_id")
+  role       String    @default("VIEWER") // VIEWER, EDITOR, ADMIN
+  invitedAt  DateTime  @default(now()) @map("invited_at")
+  acceptedAt DateTime? @map("accepted_at")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("collaborators")
+}
+
+// API key for external access
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  name       String
+  keyHash    String    @map("key_hash")
+  lastUsedAt DateTime? @map("last_used_at")
+  revokedAt  DateTime? @map("revoked_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([keyHash])
+  @@map("api_keys")
+}
+
+// Audit log for compliance and tracking
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  action    String
+  resource  String
+  details   Json?
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

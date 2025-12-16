@@ -1,4 +1,102 @@
+version: '3.8'
+
 services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: sensemaker-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: sensemaker
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis for job queue
+  redis:
+    image: redis:7-alpine
+    container_name: sensemaker-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # API Server (NestJS)
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: sensemaker-api
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/sensemaker?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-development-secret-please-change}
+      PORT: 4000
+      NODE_ENV: development
+    ports:
+      - '4000:4000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./apps/api:/app/apps/api
+      - ./packages:/app/packages
+      - /app/node_modules
+    command: npm run start:dev
+
+  # Web UI (Next.js)
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+    container_name: sensemaker-web
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+    ports:
+      - '3000:3000'
+    depends_on:
+      - api
+    volumes:
+      - ./apps/web:/app/apps/web
+      - /app/node_modules
+    command: npm run dev
+
+  # Worker (Background Jobs)
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: sensemaker-worker
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/sensemaker?schema=public
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./apps/worker:/app/apps/worker
+      - ./packages:/app/packages
+      - ./library:/app/library
+      - /app/node_modules
+    command: npm run dev
+
+  # Legacy napolitan service (Python)
   napolitan:
     build:
       context: .
@@ -8,3 +106,7 @@ services:
       - ./models:/app/models
     environment:
       PYTHONPATH: /app
+
+volumes:
+  postgres_data:
+  redis_data:

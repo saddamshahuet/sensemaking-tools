@@ -1,15 +1,15 @@
 {
-  "name": "participation-project",
-  "version": "1.0.0",
-  "description": "",
+  "name": "sensemaking-tools",
+  "version": "2.0.0",
+  "description": "AI-powered tool for analyzing large-scale online conversations",
   "main": "index.js",
   "private": true,
   "workspaces": [
-    "api-server",
+    "apps/*",
+    "packages/*",
     "library",
     "web-ui",
-    "visualizations-library",
-    "napolitan"
+    "visualization-library"
   ],
   "scripts": {
     "test": "npm run test --workspaces",
