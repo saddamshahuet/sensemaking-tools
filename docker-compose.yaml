@@ -42,7 +42,7 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/sensemaker?schema=public
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: development-secret-change-in-production
+      JWT_SECRET: ${JWT_SECRET:-development-secret-please-change}
       PORT: 4000
       NODE_ENV: development
     ports:

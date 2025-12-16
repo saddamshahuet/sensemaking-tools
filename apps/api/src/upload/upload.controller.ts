@@ -23,6 +23,18 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 // Max file size: 100MB
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
+/**
+ * Sanitize filename to prevent directory traversal and other security issues
+ */
+function sanitizeFilename(filename: string): string {
+  // Remove path separators and dangerous characters
+  return filename
+    .replace(/[/\\:*?"<>|]/g, '_')
+    .replace(/\.\./g, '_')
+    .replace(/^\./, '_')
+    .slice(0, 255); // Limit filename length
+}
+
 @ApiTags('uploads')
 @Controller('uploads')
 @UseGuards(JwtAuthGuard)
@@ -68,9 +80,12 @@ export class UploadController {
       throw new BadRequestException('No file provided');
     }
 
+    // Sanitize the filename
+    const safeFilename = sanitizeFilename(file.originalname);
+
     // In production, upload to S3/GCS and get the key
-    // For now, we'll use a mock S3 key
-    const s3Key = `uploads/${projectId}/${Date.now()}-${file.originalname}`;
+    // For now, we'll use a mock S3 key with sanitized filename
+    const s3Key = `uploads/${projectId}/${Date.now()}-${safeFilename}`;
 
     // Parse CSV to get row count (simplified - in production use a streaming parser)
     const content = file.buffer.toString('utf-8');
@@ -82,8 +97,8 @@ export class UploadController {
     const upload = await this.uploadService.createUpload(
       req.user.id,
       projectId,
-      s3Key.split('/').pop() || file.originalname,
-      file.originalname,
+      s3Key.split('/').pop() || safeFilename,
+      safeFilename,
       s3Key,
       rowCount,
       file.size,

@@ -17,15 +17,15 @@ export class RegisterDto {
   name: string;
 
   @ApiProperty({
-    description: 'Password (min 8 chars, 1 uppercase, 1 number)',
+    description: 'Password (min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char)',
     minLength: 8,
-    example: 'Password123',
+    example: 'Password@123',
   })
   @IsString()
   @MinLength(8)
   @MaxLength(100)
-  @Matches(/^(?=.*[A-Z])(?=.*\d)/, {
-    message: 'Password must contain at least 1 uppercase letter and 1 number',
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, {
+    message: 'Password must contain at least 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character (@$!%*?&)',
   })
   password: string;
 }
